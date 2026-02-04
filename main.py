@@ -29,52 +29,47 @@ async def receive_message(
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
-    # 🔹 HANDLE EMPTY BODY (FOR GUVI TESTER)
+    # 🔹 STEP 1: Read raw body safely
+    body = await request.body()
+
+    # 🔹 STEP 2: If NO BODY → this is GUVI endpoint tester
+    if not body or body.strip() == b"":
+        return {
+            "status": "success",
+            "message": "Honeypot API reachable and authenticated"
+        }
+
+    # 🔹 STEP 3: Now it's SAFE to parse JSON
     try:
         data = await request.json()
     except:
         return {
-            "status": "success",
-            "message": "Honeypot API reachable and authenticated"
+            "status": "error",
+            "message": "Invalid JSON body"
         }
-
-    # 🔹 HANDLE BODY PRESENT BUT EMPTY
-    if not data:
-        return {
-            "status": "success",
-            "message": "Honeypot API reachable and authenticated"
-        }
-
-
 
     session_id = data.get("sessionId")
     message = data.get("message")
 
     if not session_id or not message:
-        raise HTTPException(status_code=400, detail="Invalid request body")
+        return {
+            "status": "error",
+            "message": "Invalid request body"
+        }
 
     session = get_session(session_id)
 
-    if session["completed"]:
-        return {
-            "status": "success",
-            "reply": "Conversation completed"
-        }
-
     text = message.get("text", "")
 
-    # Detect scam
     if not session["scam_detected"]:
         if is_scam(text):
             session["scam_detected"] = True
 
-    # Extract intelligence
     extract_intelligence(text, session["intelligence"])
 
     session["conversation"].append(message)
     session["message_count"] += 1
 
-    # End condition
     intel = session["intelligence"]
     has_intel = (
         len(intel["upiIds"]) > 0 or
@@ -97,11 +92,7 @@ async def receive_message(
             "conversationCompleted": True
         }
 
-    # Normal agent reply
-    if session["scam_detected"]:
-        reply = generate_reply(text, session["message_count"])
-    else:
-        reply = "Okay."
+    reply = generate_reply(text, session["message_count"]) if session["scam_detected"] else "Okay."
 
     return {
         "status": "success",
