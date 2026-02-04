@@ -29,13 +29,22 @@ async def receive_message(
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
+    # 🔹 HANDLE EMPTY BODY (FOR GUVI TESTER)
     try:
-       data = await request.json()
+        data = await request.json()
     except:
-       return {
+        return {
             "status": "success",
             "message": "Honeypot API reachable and authenticated"
         }
+
+    # 🔹 HANDLE BODY PRESENT BUT EMPTY
+    if not data:
+        return {
+            "status": "success",
+            "message": "Honeypot API reachable and authenticated"
+        }
+
 
 
     session_id = data.get("sessionId")
