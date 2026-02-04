@@ -29,7 +29,14 @@ async def receive_message(
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
-    data = await request.json()
+    try:
+       data = await request.json()
+    except:
+       return {
+            "status": "success",
+            "message": "Honeypot API reachable and authenticated"
+        }
+
 
     session_id = data.get("sessionId")
     message = data.get("message")
