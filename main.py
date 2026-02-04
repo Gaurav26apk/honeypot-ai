@@ -26,20 +26,21 @@ async def receive_message(
     request: Request,
     x_api_key: str = Header(None)
 ):
+    # 🔐 API KEY CHECK
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
-    # 🔹 STEP 1: Read raw body safely
+    # 🔹 READ RAW BODY (GUVI TESTER FIX)
     body = await request.body()
 
-    # 🔹 STEP 2: If NO BODY → this is GUVI endpoint tester
+    # 🔹 GUVI ENDPOINT TESTER (NO BODY)
     if not body or body.strip() == b"":
         return {
             "status": "success",
-            "message": "Honeypot API reachable and authenticated"
+            "reply": "Hello, how can I help you?"
         }
 
-    # 🔹 STEP 3: Now it's SAFE to parse JSON
+    # 🔹 SAFE JSON PARSE
     try:
         data = await request.json()
     except:
@@ -48,28 +49,34 @@ async def receive_message(
             "message": "Invalid JSON body"
         }
 
+    # 🔹 VALIDATE REQUIRED FIELDS
     session_id = data.get("sessionId")
-    message = data.get("message")
+    message_obj = data.get("message")
 
-    if not session_id or not message:
+    if not session_id or not message_obj:
         return {
             "status": "error",
             "message": "Invalid request body"
         }
 
+    text = message_obj.get("text", "")
+
+    # 🔹 LOAD SESSION
     session = get_session(session_id)
 
-    text = message.get("text", "")
-
+    # 🔹 SCAM DETECTION
     if not session["scam_detected"]:
         if is_scam(text):
             session["scam_detected"] = True
 
+    # 🔹 INTELLIGENCE EXTRACTION
     extract_intelligence(text, session["intelligence"])
 
-    session["conversation"].append(message)
+    # 🔹 UPDATE SESSION
+    session["conversation"].append(message_obj)
     session["message_count"] += 1
 
+    # 🔹 END CONDITION
     intel = session["intelligence"]
     has_intel = (
         len(intel["upiIds"]) > 0 or
@@ -92,6 +99,7 @@ async def receive_message(
             "conversationCompleted": True
         }
 
+    # 🔹 NORMAL AGENT REPLY
     reply = generate_reply(text, session["message_count"]) if session["scam_detected"] else "Okay."
 
     return {
